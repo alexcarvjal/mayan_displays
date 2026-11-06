@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#11151a">
 <title>Simulador Display Maya</title>
 <meta name="description" content="Simulador de un display LED de números mayas: escribe una expresión booleana para cada LED y comprueba la tabla de verdad.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -10,39 +12,27 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
 /* Layout: banco de pruebas — panel de entradas + display a la izquierda, ecuaciones por LED a la derecha, tabla de verdad abajo */
+/* Siempre en modo oscuro, sin importar el tema del sistema */
 :root {
-  --bg: #e7eaee;
-  --panel: #f7f8fa;
-  --ink: #18212c;
-  --muted: #5b6676;
-  --line: #cfd5dd;
-  --accent: #1e5d8a;
-  --accent-soft: #dbe7f1;
-  --error: #b3261e;
-  --error-soft: #fbe3e1;
-  --ok: #2c7a4b;
-  --module: #15181d;
-  --module-edge: #2a2f37;
+  --bg: #11151a;
+  --panel: #192028;
+  --ink: #e2e8ef;
+  --muted: #8e99a8;
+  --line: #2a333e;
+  --accent: #6aaee0;
+  --accent-soft: #1d3346;
+  --error: #ff8a80;
+  --error-soft: #3a1d1c;
+  --ok: #6fd39a;
+  --module: #0b0d10;
+  --module-edge: #262c34;
   --seg-on: #ff4130;
   --seg-glow: rgba(255, 65, 48, 0.55);
   --seg-off: rgba(255, 65, 48, 0.09);
-  --row-hi: #fff3d6;
+  --row-hi: #3a3220;
   --f-display: "Chakra Petch", "Arial Narrow", system-ui, sans-serif;
   --f-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #11151a; --panel: #192028; --ink: #e2e8ef; --muted: #8e99a8; --line: #2a333e;
-    --accent: #6aaee0; --accent-soft: #1d3346; --error: #ff8a80; --error-soft: #3a1d1c; --ok: #6fd39a;
-    --module: #0b0d10; --module-edge: #262c34; --row-hi: #3a3220;
-    color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #11151a; --panel: #192028; --ink: #e2e8ef; --muted: #8e99a8; --line: #2a333e;
-  --accent: #6aaee0; --accent-soft: #1d3346; --error: #ff8a80; --error-soft: #3a1d1c; --ok: #6fd39a;
-  --module: #0b0d10; --module-edge: #262c34; --row-hi: #3a3220;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -184,9 +174,9 @@ table.tt { border-collapse: collapse; width: 100%; font-family: var(--f-mono); f
 <body>
 <div class="wrap">
   <header>
-    <div class="eyebrow">Lógica combinacional · 5 entradas → 14 LEDs</div>
+    <div class="eyebrow">Lógica combinacional · 5 entradas → 8 LEDs</div>
     <h1>Simulador de display de números mayas</h1>
-    <p>Escribe una expresión booleana en función de A, B, C, D y E para cada LED. Cada punto vale 1, cada barra vale 5 y la concha (un solo LED) es el cero. Mueve los interruptores y mira cómo se enciende el display. Haz clic en una fila de la tabla de verdad para saltar a esa combinación.</p>
+    <p>Escribe una expresión booleana en función de A, B, C, D y E para cada LED. Cada punto vale 1, cada barra vale 5 y la concha es el cero; cada barra y la concha son un solo LED. Mueve los interruptores y mira cómo se enciende el display. Haz clic en una fila de la tabla de verdad para saltar a esa combinación.</p>
   </header>
 
   <div class="main">
@@ -241,9 +231,7 @@ table.tt { border-collapse: collapse; width: 100%; font-family: var(--f-mono); f
         <thead><tr>
           <th>#</th><th class="sep">A</th><th>B</th><th>C</th><th>D</th><th>E</th>
           <th class="sep">p1</th><th>p2</th><th>p3</th><th>p4</th>
-          <th class="sep">s1</th><th>s2</th><th>s3</th>
-          <th class="sep">m1</th><th>m2</th><th>m3</th>
-          <th class="sep">i1</th><th>i2</th><th>i3</th>
+          <th class="sep">s</th><th>m</th><th>i</th>
           <th class="sep">c</th>
           <th class="sep">Display</th><th>Muestra</th>
         </tr></thead>
@@ -255,26 +243,21 @@ table.tt { border-collapse: collapse; width: 100%; font-family: var(--f-mono); f
 
 <script>
 (() => {
-  const LEDS = ["p1", "p2", "p3", "p4", "s1", "s2", "s3", "m1", "m2", "m3", "i1", "i2", "i3", "c"];
+  const LEDS = ["p1", "p2", "p3", "p4", "s", "m", "i", "c"];
   const VARS = ["A", "B", "C", "D", "E"];
   const N = 1 << VARS.length;
-  const STORE = "simMaya:v1";
-  const SEP = new Set(["p1", "s1", "m1", "i1", "c"]);
+  const STORE = "simMaya:v2";
+  const SEP = new Set(["p1", "s", "c"]);
 
   const GROUPS = [
     { t: "Puntos", h: "valen 1 cada uno · de izquierda a derecha", keys: ["p1", "p2", "p3", "p4"] },
-    { t: "Barra superior", h: "vale 5 · segmentos izquierdo, central y derecho", keys: ["s1", "s2", "s3"] },
-    { t: "Barra media", h: "vale 5", keys: ["m1", "m2", "m3"] },
-    { t: "Barra inferior", h: "vale 5", keys: ["i1", "i2", "i3"] },
+    { t: "Barras", h: "valen 5 cada una · cada barra es un solo LED", keys: ["s", "m", "i"] },
     { t: "Concha", h: "un solo LED · representa el 0", keys: ["c"] }
   ];
-  const PIECE = ["izquierdo", "central", "derecho"];
-  const ROWNAME = { s: "superior", m: "media", i: "inferior" };
-  const NAMES = { c: "Concha (cero)" };
+  const NAMES = { s: "Barra superior", m: "Barra media", i: "Barra inferior", c: "Concha (cero)" };
   for (let k = 1; k <= 4; k++) NAMES["p" + k] = "Punto " + k;
-  for (const r of "smi") for (let k = 1; k <= 3; k++) NAMES[r + k] = `Barra ${ROWNAME[r]}, segmento ${PIECE[k - 1]}`;
 
-  const bars = (s, m, i) => ({ s1: s, s2: s, s3: s, m1: m, m2: m, m3: m, i1: i, i2: i, i3: i });
+  const bars = (s, m, i) => ({ s, m, i });
   const PRESETS = {
     /* 0–19 con 20–31 como «no importa» (suma de productos mínima) */
     maya: {
@@ -301,7 +284,7 @@ table.tt { border-collapse: collapse; width: 100%; font-family: var(--f-mono); f
     const q = Math.floor(n / 5), r = n % 5;
     const o = { c: n === 0 ? 1 : 0 };
     for (let k = 1; k <= 4; k++) o["p" + k] = r >= k ? 1 : 0;
-    for (let k = 1; k <= 3; k++) { o["i" + k] = q >= 1 ? 1 : 0; o["m" + k] = q >= 2 ? 1 : 0; o["s" + k] = q >= 3 ? 1 : 0; }
+    o.i = q >= 1 ? 1 : 0; o.m = q >= 2 ? 1 : 0; o.s = q >= 3 ? 1 : 0;
     return LEDS.map((k) => o[k]);
   }
   const CANON = {};
@@ -314,12 +297,7 @@ table.tt { border-collapse: collapse; width: 100%; font-family: var(--f-mono); f
     const count = lits.reduce((a, b) => a + b, 0);
     if (count === 0) return { text: "(apagado)", value: null };
     if (l.c) return count === 1 ? { text: "0", value: 0 } : { text: "— (cero mezclado)", value: null };
-    let nBars = 0;
-    for (const r of "smi") {
-      const on = [1, 2, 3].filter((k) => l[r + k]).length;
-      if (on === 3) nBars++;
-      else if (on) return { text: "— (barra incompleta)", value: null };
-    }
+    const nBars = l.s + l.m + l.i;
     const nDots = [1, 2, 3, 4].filter((k) => l["p" + k]).length;
     const v = nBars * 5 + nDots;
     const key = lits.join("");
@@ -463,9 +441,12 @@ table.tt { border-collapse: collapse; width: 100%; font-family: var(--f-mono); f
   function geometry({ r, t, ts, g }) {
     const G = {};
     DOT_X.forEach((x, k) => { G["p" + (k + 1)] = [octagon(x, DOT_Y, r)]; });
-    for (const row of "smi") for (let k = 0; k < 3; k++) {
-      const x0 = BAR_X0 + PIECE_W * k;
-      G[row + (k + 1)] = [stroke([x0, ROW_Y[row]], [x0 + PIECE_W, ROW_Y[row]], t, g)];
+    /* Cada barra se dibuja con 3 segmentos, pero es un solo LED */
+    for (const row of "smi") {
+      G[row] = [0, 1, 2].map((k) => {
+        const x0 = BAR_X0 + PIECE_W * k;
+        return stroke([x0, ROW_Y[row]], [x0 + PIECE_W, ROW_Y[row]], t, g);
+      });
     }
     const shell = SHELL_OUT.map((P, k) => stroke(P, SHELL_OUT[(k + 1) % SHELL_OUT.length], ts, g));
     for (const [P, Q] of SHELL_RAYS) shell.push(stroke(P, Q, ts, g));
@@ -510,7 +491,7 @@ table.tt { border-collapse: collapse; width: 100%; font-family: var(--f-mono); f
       labels[k] = t;
     };
     DOT_X.forEach((x, k) => addLabel("p" + (k + 1), x, 23));
-    for (const row of "smi") for (let k = 0; k < 3; k++) addLabel(row + (k + 1), BAR_X0 + PIECE_W * k + PIECE_W / 2, ROW_Y[row] + 0.5);
+    for (const row of "smi") addLabel(row, BAR_X0 + PIECE_W * 1.5, ROW_Y[row] + 0.5);
     addLabel("c", 332, 131);
     return { els, labels };
   }

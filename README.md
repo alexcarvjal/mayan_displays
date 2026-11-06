@@ -7,10 +7,10 @@ Página web para diseñar y probar la lógica combinacional de un display LED de
 ## El display
 
 - **4 puntos** (`p1`–`p4`, de izquierda a derecha): valen 1 cada uno.
-- **3 barras** de 3 segmentos cada una (`s1–s3` superior, `m1–m3` media, `i1–i3` inferior): cada barra vale 5.
+- **3 barras** (`s` superior, `m` media, `i` inferior): cada una se dibuja con 3 segmentos pero es un solo LED y vale 5.
 - **1 concha** (`c`): es un solo LED y representa el 0.
 
-En total son **14 LEDs** controlados por **5 entradas** (`A` = 16, `B` = 8, `C` = 4, `D` = 2, `E` = 1).
+En total son **8 LEDs** controlados por **5 entradas** (`A` = 16, `B` = 8, `C` = 4, `D` = 2, `E` = 1). La página está siempre en modo oscuro.
 
 ## Cómo se usa
 
