@@ -24,6 +24,6 @@ Incluye dos decodificadores precargados:
 - **Maya (0–19):** expresiones mínimas tratando 20–31 como «no importa».
 - **Estricto:** igual, pero deja el display apagado de 20 a 31.
 
-Los dos llenan los puntos de izquierda a derecha y las barras de abajo hacia arriba.
+Los dos llenan los puntos de izquierda a derecha y las barras de arriba hacia abajo: el 5 enciende `s`, el 10 `s` y `m`, y el 15 las tres.
 
 Es un único archivo `index.html` sin dependencias (solo fuentes de Google Fonts). Basado en el diseño del [simulador de 7 segmentos](https://dquezada2108.github.io/7_segment_displays/).

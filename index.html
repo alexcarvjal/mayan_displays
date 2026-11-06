@@ -231,7 +231,7 @@ table.tt { border-collapse: collapse; width: 100%; font-family: var(--f-mono); f
         <button class="btn" id="presetStrict" type="button">Cargar decodificador estricto (20–31 apagado)</button>
         <button class="btn" id="clearAll" type="button">Borrar todo</button>
       </div>
-      <p class="note">Los decodificadores llenan los puntos de izquierda a derecha y las barras de abajo hacia arriba. Un dígito maya va de 0 a 19: el primero trata 20–31 como «no importa» (expresiones mínimas) y el segundo deja el display apagado en esas combinaciones.</p>
+      <p class="note">Los decodificadores llenan los puntos de izquierda a derecha y las barras de arriba hacia abajo (s, luego m, luego i). Un dígito maya va de 0 a 19: el primero trata 20–31 como «no importa» (expresiones mínimas) y el segundo deja el display apagado en esas combinaciones.</p>
 
       <details class="help">
         <summary>Símbolos que entiende el simulador</summary>
@@ -297,7 +297,10 @@ table.tt { border-collapse: collapse; width: 100%; font-family: var(--f-mono); f
   const LEDS = ["p1", "p2", "p3", "p4", "s", "m", "i", "c"];
   const VARS = ["A", "B", "C", "D", "E"];
   const N = 1 << VARS.length;
-  const STORE = "simMaya:v2";
+  const STORE = "simMaya:v3";
+  /* v2 llenaba las barras de abajo hacia arriba: si guardó esos decodificadores, se intercambian s ↔ i */
+  const OLD_STORE = "simMaya:v2";
+  const OLD_BARS = { s: ["A + BCDE", "AB'C' + A'BCDE"], i: ["A + B + CE + CD", "A'B + AB'C' + A'CE + A'CD"] };
   const SEP = new Set(["p1", "s", "c"]);
 
   const GROUPS = [
@@ -316,7 +319,7 @@ table.tt { border-collapse: collapse; width: 100%; font-family: var(--f-mono); f
       p2: "BD' + AE + B'C'D + B'DE + CD'E' + BCE'",
       p3: "AD + BD'E + BC'D' + B'CD'E' + B'C'DE + BCDE'",
       p4: "ADE + BC'D'E + B'CD'E' + BCDE'",
-      ...bars("A + BCDE", "A + BD + BC", "A + B + CE + CD"),
+      ...bars("A + B + CE + CD", "A + BD + BC", "A + BCDE"),
       c: "A'B'C'D'E'"
     },
     /* 0–19 y apagado en 20–31 */
@@ -325,17 +328,17 @@ table.tt { border-collapse: collapse; width: 100%; font-family: var(--f-mono); f
       p2: "B'C'D + A'BD' + AB'C'E + A'BCE' + A'B'DE + A'CD'E'",
       p3: "AB'C'D + A'BC'D' + A'BD'E + B'C'DE + A'B'CD'E' + A'BCDE'",
       p4: "A'BC'D'E + A'B'CD'E' + AB'C'DE + A'BCDE'",
-      ...bars("AB'C' + A'BCDE", "AB'C' + A'BD + A'BC", "A'B + AB'C' + A'CE + A'CD"),
+      ...bars("A'B + AB'C' + A'CE + A'CD", "AB'C' + A'BD + A'BC", "AB'C' + A'BCDE"),
       c: "A'B'C'D'E'"
     }
   };
 
-  /* Forma canónica de cada número maya en este display (puntos izq → der, barras de abajo hacia arriba) */
+  /* Forma canónica de cada número maya en este display (puntos izq → der, barras de arriba hacia abajo) */
   function canonical(n) {
     const q = Math.floor(n / 5), r = n % 5;
     const o = { c: n === 0 ? 1 : 0 };
     for (let k = 1; k <= 4; k++) o["p" + k] = r >= k ? 1 : 0;
-    o.i = q >= 1 ? 1 : 0; o.m = q >= 2 ? 1 : 0; o.s = q >= 3 ? 1 : 0;
+    o.s = q >= 1 ? 1 : 0; o.m = q >= 2 ? 1 : 0; o.i = q >= 3 ? 1 : 0;
     return LEDS.map((k) => o[k]);
   }
   const CANON = {};
@@ -559,7 +562,13 @@ table.tt { border-collapse: collapse; width: 100%; font-family: var(--f-mono); f
   const TARGET_RE = new RegExp(`^[01x]{${LEDS.length}}$`);
   const state = { inputs: { A: 0, B: 0, C: 0, D: 0, E: 0 }, exprs: { ...PRESETS.maya }, activeLow: false, target: blankTarget() };
   try {
-    const saved = JSON.parse(localStorage.getItem(STORE) || "null");
+    let saved = JSON.parse(localStorage.getItem(STORE) || "null");
+    if (!saved) {
+      saved = JSON.parse(localStorage.getItem(OLD_STORE) || "null");
+      const ex = saved && saved.exprs;
+      const k = ex ? OLD_BARS.s.indexOf(ex.s) : -1;
+      if (k >= 0 && OLD_BARS.i[k] === ex.i) { ex.s = OLD_BARS.i[k]; ex.i = OLD_BARS.s[k]; }
+    }
     if (saved && saved.exprs) {
       for (const k of LEDS) if (typeof saved.exprs[k] === "string") state.exprs[k] = saved.exprs[k];
       if (saved.inputs) for (const v of VARS) state.inputs[v] = saved.inputs[v] ? 1 : 0;
