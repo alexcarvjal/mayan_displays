@@ -17,6 +17,7 @@ En total son **8 LEDs** controlados por **5 entradas** (`A` = 16, `B` = 8, `C` =
 1. Escribe una expresión booleana en función de A, B, C, D y E para cada LED.
 2. Mueve los interruptores o haz clic en una fila de la tabla de verdad para probar una combinación.
 3. La columna **Muestra** lee el número maya que aparece en el display y se marca en rojo si no coincide con la entrada.
+4. En **Mi tabla objetivo** escribe la tabla que quieres lograr (0, 1 o X = «no importa», con clic o con el teclado). La página marca en rojo las celdas donde tus expresiones no cumplen tu tabla, y el botón **Generar expresiones desde mi tabla** calcula la suma de productos mínima de cada LED.
 
 Incluye dos decodificadores precargados:
 

@@ -167,6 +167,31 @@ table.tt { border-collapse: collapse; width: 100%; font-family: var(--f-mono); f
 .tt td.char.miss { color: var(--error); }
 .tt td.char.na { color: var(--muted); font-weight: 400; }
 
+/* Mi tabla objetivo */
+.seg.dc { fill: rgba(240, 180, 90, 0.4); }
+.note b { color: var(--ink); font-family: var(--f-mono); }
+.cmp { font-family: var(--f-mono); font-size: .85rem; color: var(--muted); }
+.cmp:empty { display: none; }
+.cmp b { color: var(--ink); }
+.cmp .good { color: var(--ok); }
+.cmp .bad { color: var(--error); }
+.msg-ok { color: var(--accent); }
+.tgt tbody tr { cursor: default; }
+.tgt td.go { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+.tgt td.cw { padding: 2px 3px; }
+.cell {
+  appearance: none; font: inherit; font-family: var(--f-mono); font-size: .88rem; width: 28px; height: 26px;
+  border-radius: 5px; border: 1px solid var(--line); background: var(--bg); color: var(--muted); cursor: pointer; padding: 0;
+}
+.cell:hover { border-color: var(--accent); }
+.cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cell.v1 { color: var(--seg-on); font-weight: 600; border-color: rgba(255, 65, 48, 0.45); }
+.cell.vx { color: #f0b45a; font-weight: 600; }
+.cell.diff { background: var(--error-soft); border-color: var(--error); }
+.tgt td.st { font-weight: 600; }
+.tgt td.st.ok { color: var(--ok); }
+.tgt td.st.bad { color: var(--error); }
+
 @media (prefers-reduced-motion: reduce) { .seg, .seg-label, .sw .knob { transition: none; } }
 </style>
 
@@ -176,7 +201,7 @@ table.tt { border-collapse: collapse; width: 100%; font-family: var(--f-mono); f
   <header>
     <div class="eyebrow">Lógica combinacional · 5 entradas → 8 LEDs</div>
     <h1>Simulador de display de números mayas</h1>
-    <p>Escribe una expresión booleana en función de A, B, C, D y E para cada LED. Cada punto vale 1, cada barra vale 5 y la concha es el cero; cada barra y la concha son un solo LED. Mueve los interruptores y mira cómo se enciende el display. Haz clic en una fila de la tabla de verdad para saltar a esa combinación.</p>
+    <p>Escribe una expresión booleana en función de A, B, C, D y E para cada LED. Cada punto vale 1, cada barra vale 5 y la concha es el cero; cada barra y la concha son un solo LED. Mueve los interruptores y mira cómo se enciende el display. Haz clic en una fila de la tabla de verdad para saltar a esa combinación. Abajo puedes escribir tu propia tabla objetivo, compararla con tus expresiones o generar las expresiones a partir de ella.</p>
   </header>
 
   <div class="main">
@@ -225,7 +250,7 @@ table.tt { border-collapse: collapse; width: 100%; font-family: var(--f-mono); f
   </div>
 
   <section class="panel" aria-label="Tabla de verdad">
-    <div class="panel-head"><h2>Tabla de verdad</h2><span class="eyebrow">clic en una fila para probarla</span></div>
+    <div class="panel-head"><h2>Tabla de verdad</h2><span class="eyebrow">según tus expresiones · clic en una fila para probarla</span></div>
     <div class="table-scroll">
       <table class="tt">
         <thead><tr>
@@ -236,6 +261,31 @@ table.tt { border-collapse: collapse; width: 100%; font-family: var(--f-mono); f
           <th class="sep">Display</th><th>Muestra</th>
         </tr></thead>
         <tbody id="ttBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" aria-label="Mi tabla objetivo">
+    <div class="panel-head"><h2>Mi tabla objetivo</h2><span class="eyebrow">clic en una celda: 0 → 1 → X</span></div>
+    <p class="note">Escribe aquí la tabla que quieres lograr. Haz clic en una celda o selecciónala y escribe <b>0</b>, <b>1</b> o <b>X</b> («no importa»); las flechas te mueven entre celdas. Las celdas en rojo no coinciden con lo que dan tus expresiones.</p>
+    <div class="actions">
+      <button class="btn primary" id="tgtGenerate" type="button">Generar expresiones desde mi tabla</button>
+      <button class="btn" id="tgtFromExprs" type="button">Copiar la tabla de verdad actual</button>
+      <button class="btn" id="tgtDC" type="button">Poner 20–31 como X</button>
+      <button class="btn" id="tgtClear" type="button">Llenar con ceros</button>
+    </div>
+    <div class="cmp" id="tgtSummary" aria-live="polite"></div>
+    <div class="cmp msg-ok" id="tgtMsg" role="status"></div>
+    <div class="table-scroll">
+      <table class="tt tgt">
+        <thead><tr>
+          <th>#</th><th class="sep">A</th><th>B</th><th>C</th><th>D</th><th>E</th>
+          <th class="sep">p1</th><th>p2</th><th>p3</th><th>p4</th>
+          <th class="sep">s</th><th>m</th><th>i</th>
+          <th class="sep">c</th>
+          <th class="sep">Display</th><th>Muestra</th><th class="sep">¿Coincide?</th>
+        </tr></thead>
+        <tbody id="tgtBody"></tbody>
       </table>
     </div>
   </section>
@@ -498,18 +548,22 @@ table.tt { border-collapse: collapse; width: 100%; font-family: var(--f-mono); f
 
   function miniSVG(bits, cls) {
     let s = `<svg class="${cls}" viewBox="${MINI_VB}" aria-hidden="true">`;
-    LEDS.forEach((k, idx) => { s += ledMarkup(MINI, k, bits[idx] ? "on" : "off"); });
+    LEDS.forEach((k, idx) => { s += ledMarkup(MINI, k, bits[idx] === "x" ? "dc" : bits[idx] ? "on" : "off"); });
     return s + "</svg>";
   }
 
   /* ---------- Estado ---------- */
-  const state = { inputs: { A: 0, B: 0, C: 0, D: 0, E: 0 }, exprs: { ...PRESETS.maya }, activeLow: false };
+  /* target[n] = texto de 8 caracteres (uno por LED): "0", "1" o "x" (no importa) */
+  const blankTarget = () => Array.from({ length: N }, () => "0".repeat(LEDS.length));
+  const TARGET_RE = new RegExp(`^[01x]{${LEDS.length}}$`);
+  const state = { inputs: { A: 0, B: 0, C: 0, D: 0, E: 0 }, exprs: { ...PRESETS.maya }, activeLow: false, target: blankTarget() };
   try {
     const saved = JSON.parse(localStorage.getItem(STORE) || "null");
     if (saved && saved.exprs) {
       for (const k of LEDS) if (typeof saved.exprs[k] === "string") state.exprs[k] = saved.exprs[k];
       if (saved.inputs) for (const v of VARS) state.inputs[v] = saved.inputs[v] ? 1 : 0;
       state.activeLow = !!saved.activeLow;
+      if (Array.isArray(saved.target) && saved.target.length === N && saved.target.every((r) => typeof r === "string" && TARGET_RE.test(r))) state.target = saved.target;
     }
   } catch (e) { /* sin almacenamiento: usar valores por defecto */ }
   const save = () => { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {} };
@@ -670,10 +724,196 @@ table.tt { border-collapse: collapse; width: 100%; font-family: var(--f-mono); f
       rows[n].classList.toggle("cur", n === idx);
       rows[n].setAttribute("aria-label", `Combinación ${n}`);
     }
+    renderTarget();
   }
 
+  /* ---------- Minimización (Quine–McCluskey + cobertura exacta) ---------- */
+  const NV = VARS.length;
+  const pop = (x) => { let c = 0; while (x) { x &= x - 1; c++; } return c; };
+  const litCount = (p) => NV - pop(p.m);
+  function termStr(p) {
+    let s = "";
+    for (let i = 0; i < NV; i++) {
+      const bit = 1 << (NV - 1 - i);
+      if (p.m & bit) continue;
+      s += VARS[i] + (p.v & bit ? "" : "'");
+    }
+    return s || "1";
+  }
+  function minimize(on, dc) {
+    if (!on.length) return "0";
+    let terms = new Map();
+    for (const x of new Set([...on, ...dc])) terms.set(x + ",0", { v: x, m: 0 });
+    const primes = [];
+    while (terms.size) {
+      const next = new Map(), used = new Set(), list = [...terms.values()];
+      for (let a = 0; a < list.length; a++) for (let b = a + 1; b < list.length; b++) {
+        const p = list[a], q = list[b];
+        if (p.m !== q.m) continue;
+        const d = p.v ^ q.v;
+        if (d && !(d & (d - 1))) {
+          const v = p.v & ~d, m = p.m | d;
+          next.set(v + "," + m, { v, m });
+          used.add(p); used.add(q);
+        }
+      }
+      for (const t of list) if (!used.has(t)) primes.push(t);
+      terms = next;
+    }
+    const covers = (p, x) => (x & ~p.m) === p.v;
+    let best = null, nodes = 0;
+    (function search(chosen, lits, uncovered) {
+      if (best && ++nodes > 200000) return;
+      if (!uncovered.length) {
+        if (!best || chosen.length < best.n || (chosen.length === best.n && lits < best.lits)) best = { n: chosen.length, lits, sel: chosen.slice() };
+        return;
+      }
+      if (best && chosen.length + 1 > best.n) return;
+      let opts = null;
+      for (const x of uncovered) {
+        const c = primes.filter((p) => covers(p, x));
+        if (!opts || c.length < opts.length) opts = c;
+      }
+      opts.sort((a, b) => litCount(a) - litCount(b));
+      for (const p of opts) {
+        chosen.push(p);
+        search(chosen, lits + litCount(p), uncovered.filter((x) => !covers(p, x)));
+        chosen.pop();
+      }
+    })([], 0, on);
+    return best.sel
+      .sort((a, b) => litCount(a) - litCount(b) || (termStr(a) < termStr(b) ? -1 : 1))
+      .map(termStr).join(" + ");
+  }
+
+  /* ---------- Mi tabla objetivo ---------- */
+  const tgtBody = document.getElementById("tgtBody");
+  const tgtMsg = document.getElementById("tgtMsg");
+  const tgtRows = [], tgtCells = [];
+  const CYCLE = { "0": "1", "1": "x", "x": "0" };
+  const hasErrors = () => LEDS.some((k) => compiled[k].err);
+
+  function setCell(n, j, v) {
+    const r = state.target[n];
+    state.target[n] = r.slice(0, j) + v + r.slice(j + 1);
+    tgtMsg.textContent = "";
+    save(); renderTarget();
+  }
+  function focusCell(n, j) {
+    const L = LEDS.length;
+    if (j >= L) { j = 0; n++; } else if (j < 0) { j = L - 1; n--; }
+    if (n >= 0 && n < N) tgtCells[n][j].focus();
+  }
+
+  for (let n = 0; n < N; n++) {
+    const tr = document.createElement("tr");
+    if (n >= 20) { tr.classList.add("out"); tr.title = "No es un dígito maya (0–19)"; }
+    const e = envFromIndex(n);
+    const idxTd = document.createElement("td");
+    idxTd.className = "go"; idxTd.textContent = n; idxTd.title = "Probar esta combinación en el display";
+    idxTd.addEventListener("click", () => { Object.assign(state.inputs, envFromIndex(n)); save(); render(); });
+    tr.appendChild(idxTd);
+    VARS.forEach((v, i) => {
+      const td = document.createElement("td");
+      if (i === 0) td.className = "sep";
+      td.textContent = e[v];
+      tr.appendChild(td);
+    });
+    tgtCells[n] = LEDS.map((k, j) => {
+      const td = document.createElement("td");
+      td.className = "cw" + (SEP.has(k) ? " sep" : "");
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "cell";
+      b.setAttribute("aria-label", `Fila ${n}, ${NAMES[k]}`);
+      b.addEventListener("click", () => setCell(n, j, CYCLE[state.target[n][j]]));
+      b.addEventListener("keydown", (ev) => {
+        const key = ev.key;
+        if (key === "0" || key === "1") { ev.preventDefault(); setCell(n, j, key); focusCell(n, j + 1); }
+        else if (key === "x" || key === "X" || key === "-") { ev.preventDefault(); setCell(n, j, "x"); focusCell(n, j + 1); }
+        else if (key === "Backspace") { ev.preventDefault(); setCell(n, j, "0"); focusCell(n, j - 1); }
+        else if (key === "Delete") { ev.preventDefault(); setCell(n, j, "0"); }
+        else if (key === "ArrowRight") { ev.preventDefault(); focusCell(n, j + 1); }
+        else if (key === "ArrowLeft") { ev.preventDefault(); focusCell(n, j - 1); }
+        else if (key === "ArrowDown") { ev.preventDefault(); focusCell(n + 1, j); }
+        else if (key === "ArrowUp") { ev.preventDefault(); focusCell(n - 1, j); }
+      });
+      td.appendChild(b);
+      tr.appendChild(td);
+      return b;
+    });
+    const disp = document.createElement("td"); disp.className = "sep";
+    const show = document.createElement("td");
+    const cmp = document.createElement("td");
+    tr.append(disp, show, cmp);
+    tgtBody.appendChild(tr);
+    tgtRows.push({ tr, disp, show, cmp });
+  }
+
+  function renderTarget() {
+    const idx = indexFromEnv(state.inputs);
+    const errs = hasErrors();
+    let okRows = 0, diffCells = 0;
+    for (let n = 0; n < N; n++) {
+      const want = state.target[n], r = tgtRows[n];
+      const outs = errs ? null : outputsFor(envFromIndex(n));
+      let rowDiff = 0;
+      LEDS.forEach((k, j) => {
+        const v = want[j], b = tgtCells[n][j];
+        const diff = !!outs && v !== "x" && +v !== outs[j].raw;
+        if (diff) rowDiff++;
+        b.textContent = v === "x" ? "X" : v;
+        b.className = "cell v" + v + (diff ? " diff" : "");
+        b.title = diff ? `Tus expresiones dan ${outs[j].raw}` : "";
+      });
+      const lits = [...want].map((v) => (v === "x" ? "x" : state.activeLow ? 1 - +v : +v));
+      r.disp.innerHTML = `<span class="mini-wrap">${miniSVG(lits, "mini")}</span>`;
+      const d = describe(lits.map((v) => (v === 1 ? 1 : 0)));
+      r.show.textContent = d.text;
+      r.show.className = "char" + (n >= 20 ? " na" : d.value === n ? "" : " miss");
+      if (!outs) { r.cmp.textContent = "?"; r.cmp.className = "sep st"; }
+      else if (rowDiff) { r.cmp.textContent = `✗ ${rowDiff}`; r.cmp.className = "sep st bad"; diffCells += rowDiff; }
+      else { r.cmp.textContent = "✓"; r.cmp.className = "sep st ok"; okRows++; }
+      r.tr.classList.toggle("cur", n === idx);
+    }
+    document.getElementById("tgtSummary").innerHTML = errs
+      ? "Corrige los errores de sintaxis de las expresiones para poder comparar."
+      : okRows === N
+        ? `<b class="good">✓ Tus expresiones cumplen tu tabla en las ${N} filas.</b>`
+        : `Tus expresiones cumplen tu tabla en <b>${okRows}</b> de ${N} filas · <b class="bad">${diffCells}</b> ${diffCells === 1 ? "celda distinta" : "celdas distintas"} (en rojo).`;
+  }
+
+  document.getElementById("tgtGenerate").addEventListener("click", () => {
+    const gen = {};
+    LEDS.forEach((k, j) => {
+      const on = [], dc = [];
+      for (let n = 0; n < N; n++) {
+        const v = state.target[n][j];
+        if (v === "1") on.push(n); else if (v === "x") dc.push(n);
+      }
+      gen[k] = minimize(on, dc);
+    });
+    loadPreset(gen);
+    tgtMsg.textContent = "Listo: las expresiones de arriba ahora salen de tu tabla (suma de productos mínima).";
+  });
+  document.getElementById("tgtFromExprs").addEventListener("click", () => {
+    if (hasErrors()) { tgtMsg.textContent = "Corrige primero los errores de sintaxis de las expresiones."; return; }
+    for (let n = 0; n < N; n++) state.target[n] = outputsFor(envFromIndex(n)).map((o) => o.raw).join("");
+    save(); renderTarget();
+    tgtMsg.textContent = "Se copió la tabla de verdad de tus expresiones actuales.";
+  });
+  document.getElementById("tgtDC").addEventListener("click", () => {
+    for (let n = 20; n < N; n++) state.target[n] = "x".repeat(LEDS.length);
+    tgtMsg.textContent = "";
+    save(); renderTarget();
+  });
+  document.getElementById("tgtClear").addEventListener("click", () => {
+    state.target = blankTarget();
+    tgtMsg.textContent = "";
+    save(); renderTarget();
+  });
+
   render();
-  window.__simMaya = { parse, evaluate, describe, canonical, PRESETS, LEDS };
+  window.__simMaya = { parse, evaluate, describe, canonical, minimize, PRESETS, LEDS, state };
 })();
 </script>
 </body>
