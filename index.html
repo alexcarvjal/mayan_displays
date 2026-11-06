@@ -185,9 +185,10 @@ table.tt { border-collapse: collapse; width: 100%; font-family: var(--f-mono); f
 }
 .cell:hover { border-color: var(--accent); }
 .cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.cell.v1 { color: var(--seg-on); font-weight: 600; border-color: rgba(255, 65, 48, 0.45); }
+/* El rojo queda solo para las celdas que no coinciden con las expresiones */
+.cell.v1 { color: var(--ink); font-weight: 600; background: var(--accent-soft); border-color: var(--accent); }
 .cell.vx { color: #f0b45a; font-weight: 600; }
-.cell.diff { background: var(--error-soft); border-color: var(--error); }
+.cell.diff { background: var(--error-soft); border-color: var(--error); color: var(--error); }
 .tgt td.st { font-weight: 600; }
 .tgt td.st.ok { color: var(--ok); }
 .tgt td.st.bad { color: var(--error); }
