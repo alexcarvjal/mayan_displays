@@ -1,0 +1,699 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Simulador Display Maya</title>
+<meta name="description" content="Simulador de un display LED de números mayas: escribe una expresión booleana para cada LED y comprueba la tabla de verdad.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: banco de pruebas — panel de entradas + display a la izquierda, ecuaciones por LED a la derecha, tabla de verdad abajo */
+:root {
+  --bg: #e7eaee;
+  --panel: #f7f8fa;
+  --ink: #18212c;
+  --muted: #5b6676;
+  --line: #cfd5dd;
+  --accent: #1e5d8a;
+  --accent-soft: #dbe7f1;
+  --error: #b3261e;
+  --error-soft: #fbe3e1;
+  --ok: #2c7a4b;
+  --module: #15181d;
+  --module-edge: #2a2f37;
+  --seg-on: #ff4130;
+  --seg-glow: rgba(255, 65, 48, 0.55);
+  --seg-off: rgba(255, 65, 48, 0.09);
+  --row-hi: #fff3d6;
+  --f-display: "Chakra Petch", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151a; --panel: #192028; --ink: #e2e8ef; --muted: #8e99a8; --line: #2a333e;
+    --accent: #6aaee0; --accent-soft: #1d3346; --error: #ff8a80; --error-soft: #3a1d1c; --ok: #6fd39a;
+    --module: #0b0d10; --module-edge: #262c34; --row-hi: #3a3220;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151a; --panel: #192028; --ink: #e2e8ef; --muted: #8e99a8; --line: #2a333e;
+  --accent: #6aaee0; --accent-soft: #1d3346; --error: #ff8a80; --error-soft: #3a1d1c; --ok: #6fd39a;
+  --module: #0b0d10; --module-edge: #262c34; --row-hi: #3a3220;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--f-body); font-size: 15px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 48px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 20px; }
+header h1 {
+  font-family: var(--f-display); font-weight: 700; font-size: 1.7rem; letter-spacing: .01em;
+  margin: 0; text-wrap: balance;
+}
+header p { margin: 4px 0 0; color: var(--muted); max-width: 72ch; }
+.eyebrow { font-family: var(--f-display); font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+
+.main { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 900px) { .main { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: grid; gap: 14px; min-width: 0; }
+.panel h2 { font-family: var(--f-display); font-size: 1rem; font-weight: 600; margin: 0; letter-spacing: .02em; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+
+/* Interruptores de entrada */
+.switches { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.sw {
+  appearance: none; border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+  border-radius: 8px; padding: 10px 2px 8px; cursor: pointer; display: grid; justify-items: center; gap: 6px;
+  font: inherit; min-width: 0;
+}
+.sw:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sw .name { font-family: var(--f-display); font-weight: 700; font-size: 1.15rem; }
+.sw .track { width: 26px; height: 46px; border-radius: 6px; background: var(--module); position: relative; border: 1px solid var(--module-edge); }
+.sw .knob { position: absolute; left: 3px; right: 3px; height: 18px; border-radius: 4px; background: #c9ced6; bottom: 3px; transition: bottom .15s ease, background .15s; }
+.sw[aria-pressed="true"] .knob { bottom: 23px; background: var(--seg-on); box-shadow: 0 0 8px var(--seg-glow); }
+.sw .val { font-family: var(--f-mono); font-size: .85rem; color: var(--muted); }
+.sw[aria-pressed="true"] .val { color: var(--ink); font-weight: 600; }
+.sw .w { font-size: .68rem; color: var(--muted); font-family: var(--f-mono); white-space: nowrap; }
+
+.readout { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-family: var(--f-mono); font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.readout b { color: var(--ink); }
+
+/* Módulo del display */
+.module {
+  background: var(--module); border: 1px solid var(--module-edge); border-radius: 10px;
+  padding: 16px 14px; display: grid; justify-items: center; gap: 10px;
+}
+.module svg.big { width: 100%; max-width: 400px; height: auto; display: block; }
+.seg { transition: fill .12s ease; }
+.seg.on { fill: var(--seg-on); filter: drop-shadow(0 0 5px var(--seg-glow)); }
+.seg.off { fill: var(--seg-off); }
+.seg-label { font-family: var(--f-mono); font-size: 10px; fill: #6b7380; transition: fill .12s ease; }
+.seg-label.lit { fill: #3a0b06; font-weight: 600; }
+.module .status { font-family: var(--f-mono); font-size: .8rem; color: #aab2bd; text-align: center; }
+.module .status b { color: var(--seg-on); }
+
+.opt { display: flex; gap: 8px; align-items: center; font-size: .9rem; color: var(--muted); cursor: pointer; }
+.opt input { accent-color: var(--accent); width: 16px; height: 16px; flex: none; }
+
+/* Ecuaciones */
+.symbols { display: flex; flex-wrap: wrap; gap: 6px; }
+.sym {
+  font-family: var(--f-mono); font-size: .95rem; min-width: 36px; padding: 5px 8px; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer;
+}
+.sym:hover { border-color: var(--accent); }
+.sym:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.eqs { display: grid; gap: 10px; }
+.eq-group {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin-top: 6px;
+  padding-bottom: 4px; border-bottom: 1px solid var(--line);
+}
+.eq-group:first-child { margin-top: 0; }
+.eq-group .t { font-family: var(--f-display); font-weight: 600; font-size: .85rem; letter-spacing: .06em; text-transform: uppercase; }
+.eq-group .h { font-size: .8rem; color: var(--muted); }
+.eq { display: grid; grid-template-columns: 60px 44px minmax(0, 1fr) 30px; gap: 10px; align-items: center; }
+.eq .icon { width: 60px; height: auto; display: block; }
+.eq .icon .seg.off { fill: var(--line); filter: none; }
+.eq label { font-family: var(--f-mono); font-weight: 600; font-size: 1.05rem; white-space: nowrap; }
+.eq input[type="text"] {
+  width: 100%; font-family: var(--f-mono); font-size: 1rem; padding: 9px 11px;
+  border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--ink);
+}
+.eq input[type="text"]:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent; }
+.eq.bad input[type="text"] { border-color: var(--error); background: var(--error-soft); }
+.eq .led {
+  width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  font-family: var(--f-mono); font-weight: 600; font-size: .9rem; border: 1px solid var(--line); color: var(--muted);
+}
+.eq .led.on { background: var(--seg-on); color: #fff; border-color: transparent; box-shadow: 0 0 10px var(--seg-glow); }
+.eq .msg { grid-column: 3 / 5; font-size: .82rem; color: var(--error); margin-top: -4px; }
+.eq .msg:empty { display: none; }
+@media (max-width: 480px) {
+  .eq { grid-template-columns: 44px 40px minmax(0, 1fr) 30px; gap: 8px; }
+  .eq .icon { width: 44px; }
+  .eq label { font-size: .95rem; }
+}
+
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn {
+  font: inherit; font-weight: 500; font-size: .9rem; padding: 7px 12px; border-radius: 7px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+}
+.btn.primary { background: var(--accent); color: var(--panel); border-color: var(--accent); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.note { margin: -4px 0 0; font-size: .85rem; color: var(--muted); }
+
+details.help { font-size: .88rem; color: var(--muted); }
+details.help summary { cursor: pointer; color: var(--ink); font-weight: 500; }
+.help table { border-collapse: collapse; margin-top: 8px; width: 100%; }
+.help td { padding: 4px 8px 4px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.help code { font-family: var(--f-mono); color: var(--ink); background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+
+/* Tabla de verdad */
+.table-scroll { overflow-x: auto; }
+table.tt { border-collapse: collapse; width: 100%; font-family: var(--f-mono); font-size: .88rem; font-variant-numeric: tabular-nums; }
+.tt th, .tt td { padding: 5px 6px; text-align: center; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.tt th { font-family: var(--f-display); font-weight: 600; color: var(--muted); font-size: .8rem; letter-spacing: .04em; position: sticky; top: 0; background: var(--panel); }
+.tt th.sep, .tt td.sep { border-left: 1px solid var(--line); }
+.tt tbody tr { cursor: pointer; }
+.tt tbody tr:hover { background: var(--accent-soft); }
+.tt tbody tr.cur { background: var(--row-hi); }
+.tt tbody tr.out td:first-child { color: var(--muted); }
+.tt td.one { color: var(--seg-on); font-weight: 600; }
+.tt td.zero { color: var(--muted); }
+.tt td.err { color: var(--error); }
+.tt .mini { width: 56px; height: auto; display: block; margin: 0 auto; }
+.tt .mini-wrap { background: var(--module); border-radius: 4px; padding: 3px 4px; display: inline-block; vertical-align: middle; }
+.tt td.char { font-weight: 600; text-align: left; }
+.tt td.char.miss { color: var(--error); }
+.tt td.char.na { color: var(--muted); font-weight: 400; }
+
+@media (prefers-reduced-motion: reduce) { .seg, .seg-label, .sw .knob { transition: none; } }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Lógica combinacional · 5 entradas → 14 LEDs</div>
+    <h1>Simulador de display de números mayas</h1>
+    <p>Escribe una expresión booleana en función de A, B, C, D y E para cada LED. Cada punto vale 1, cada barra vale 5 y la concha (un solo LED) es el cero. Mueve los interruptores y mira cómo se enciende el display. Haz clic en una fila de la tabla de verdad para saltar a esa combinación.</p>
+  </header>
+
+  <div class="main">
+    <section class="panel" aria-label="Entradas y display">
+      <div class="panel-head"><h2>Entradas</h2><span class="eyebrow">A = MSB</span></div>
+      <div class="switches" id="switches"></div>
+      <div class="readout"><span>ABCDE = <b id="bin">00000</b></span><span>decimal <b id="dec">0</b></span><span id="maya"></span></div>
+
+      <div class="module">
+        <svg class="big" id="bigDisplay" viewBox="18 10 404 166" role="img" aria-label="Display de números mayas"></svg>
+        <div class="status" id="status"></div>
+      </div>
+
+      <label class="opt"><input type="checkbox" id="activeLow"> Salidas activas en bajo (ánodo común): un LED enciende cuando su expresión vale 0</label>
+    </section>
+
+    <section class="panel" aria-label="Expresiones de los LEDs">
+      <div class="panel-head"><h2>Expresiones por LED</h2><span class="eyebrow">salida actual</span></div>
+
+      <div class="symbols" id="symbols" aria-label="Insertar símbolo en la expresión activa"></div>
+
+      <div class="eqs" id="eqs"></div>
+
+      <div class="actions">
+        <button class="btn primary" id="presetMaya" type="button">Cargar decodificador maya (0–19)</button>
+        <button class="btn" id="presetStrict" type="button">Cargar decodificador estricto (20–31 apagado)</button>
+        <button class="btn" id="clearAll" type="button">Borrar todo</button>
+      </div>
+      <p class="note">Los decodificadores llenan los puntos de izquierda a derecha y las barras de abajo hacia arriba. Un dígito maya va de 0 a 19: el primero trata 20–31 como «no importa» (expresiones mínimas) y el segundo deja el display apagado en esas combinaciones.</p>
+
+      <details class="help">
+        <summary>Símbolos que entiende el simulador</summary>
+        <table>
+          <tr><td>NOT</td><td><code>A'</code> <code>!A</code> <code>~A</code> <code>¬A</code> &nbsp;(la comilla va después)</td></tr>
+          <tr><td>AND</td><td><code>AB</code> <code>A·B</code> <code>A*B</code> <code>A&amp;B</code> <code>A∧B</code> &nbsp;(juntas = AND)</td></tr>
+          <tr><td>OR</td><td><code>A+B</code> <code>A|B</code> <code>A∨B</code></td></tr>
+          <tr><td>XOR</td><td><code>A⊕B</code> <code>A^B</code></td></tr>
+          <tr><td>XNOR</td><td><code>A⊙B</code></td></tr>
+          <tr><td>Variables</td><td><code>A</code> <code>B</code> <code>C</code> <code>D</code> <code>E</code> &nbsp;(A vale 16, E vale 1)</td></tr>
+          <tr><td>Constantes</td><td><code>0</code> <code>1</code></td></tr>
+          <tr><td>Agrupar</td><td><code>(A+B)'</code> &nbsp;niega todo el paréntesis</td></tr>
+          <tr><td>Precedencia</td><td>NOT, luego AND, luego XOR/XNOR, luego OR. Una expresión vacía vale 0.</td></tr>
+        </table>
+      </details>
+    </section>
+  </div>
+
+  <section class="panel" aria-label="Tabla de verdad">
+    <div class="panel-head"><h2>Tabla de verdad</h2><span class="eyebrow">clic en una fila para probarla</span></div>
+    <div class="table-scroll">
+      <table class="tt">
+        <thead><tr>
+          <th>#</th><th class="sep">A</th><th>B</th><th>C</th><th>D</th><th>E</th>
+          <th class="sep">p1</th><th>p2</th><th>p3</th><th>p4</th>
+          <th class="sep">s1</th><th>s2</th><th>s3</th>
+          <th class="sep">m1</th><th>m2</th><th>m3</th>
+          <th class="sep">i1</th><th>i2</th><th>i3</th>
+          <th class="sep">c</th>
+          <th class="sep">Display</th><th>Muestra</th>
+        </tr></thead>
+        <tbody id="ttBody"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  const LEDS = ["p1", "p2", "p3", "p4", "s1", "s2", "s3", "m1", "m2", "m3", "i1", "i2", "i3", "c"];
+  const VARS = ["A", "B", "C", "D", "E"];
+  const N = 1 << VARS.length;
+  const STORE = "simMaya:v1";
+  const SEP = new Set(["p1", "s1", "m1", "i1", "c"]);
+
+  const GROUPS = [
+    { t: "Puntos", h: "valen 1 cada uno · de izquierda a derecha", keys: ["p1", "p2", "p3", "p4"] },
+    { t: "Barra superior", h: "vale 5 · segmentos izquierdo, central y derecho", keys: ["s1", "s2", "s3"] },
+    { t: "Barra media", h: "vale 5", keys: ["m1", "m2", "m3"] },
+    { t: "Barra inferior", h: "vale 5", keys: ["i1", "i2", "i3"] },
+    { t: "Concha", h: "un solo LED · representa el 0", keys: ["c"] }
+  ];
+  const PIECE = ["izquierdo", "central", "derecho"];
+  const ROWNAME = { s: "superior", m: "media", i: "inferior" };
+  const NAMES = { c: "Concha (cero)" };
+  for (let k = 1; k <= 4; k++) NAMES["p" + k] = "Punto " + k;
+  for (const r of "smi") for (let k = 1; k <= 3; k++) NAMES[r + k] = `Barra ${ROWNAME[r]}, segmento ${PIECE[k - 1]}`;
+
+  const bars = (s, m, i) => ({ s1: s, s2: s, s3: s, m1: m, m2: m, m3: m, i1: i, i2: i, i3: i });
+  const PRESETS = {
+    /* 0–19 con 20–31 como «no importa» (suma de productos mínima) */
+    maya: {
+      p1: "A + CE' + C'E + B'D + BD'",
+      p2: "BD' + AE + B'C'D + B'DE + CD'E' + BCE'",
+      p3: "AD + BD'E + BC'D' + B'CD'E' + B'C'DE + BCDE'",
+      p4: "ADE + BC'D'E + B'CD'E' + BCDE'",
+      ...bars("A + BCDE", "A + BD + BC", "A + B + CE + CD"),
+      c: "A'B'C'D'E'"
+    },
+    /* 0–19 y apagado en 20–31 */
+    strict: {
+      p1: "A'CE' + A'C'E + AB'C' + A'B'D + A'BD'",
+      p2: "B'C'D + A'BD' + AB'C'E + A'BCE' + A'B'DE + A'CD'E'",
+      p3: "AB'C'D + A'BC'D' + A'BD'E + B'C'DE + A'B'CD'E' + A'BCDE'",
+      p4: "A'BC'D'E + A'B'CD'E' + AB'C'DE + A'BCDE'",
+      ...bars("AB'C' + A'BCDE", "AB'C' + A'BD + A'BC", "A'B + AB'C' + A'CE + A'CD"),
+      c: "A'B'C'D'E'"
+    }
+  };
+
+  /* Forma canónica de cada número maya en este display (puntos izq → der, barras de abajo hacia arriba) */
+  function canonical(n) {
+    const q = Math.floor(n / 5), r = n % 5;
+    const o = { c: n === 0 ? 1 : 0 };
+    for (let k = 1; k <= 4; k++) o["p" + k] = r >= k ? 1 : 0;
+    for (let k = 1; k <= 3; k++) { o["i" + k] = q >= 1 ? 1 : 0; o["m" + k] = q >= 2 ? 1 : 0; o["s" + k] = q >= 3 ? 1 : 0; }
+    return LEDS.map((k) => o[k]);
+  }
+  const CANON = {};
+  for (let n = 0; n < 20; n++) CANON[canonical(n).join("")] = n;
+
+  /* Lee lo que muestra el display: { text, value } */
+  function describe(lits) {
+    const l = {};
+    LEDS.forEach((k, i) => { l[k] = lits[i]; });
+    const count = lits.reduce((a, b) => a + b, 0);
+    if (count === 0) return { text: "(apagado)", value: null };
+    if (l.c) return count === 1 ? { text: "0", value: 0 } : { text: "— (cero mezclado)", value: null };
+    let nBars = 0;
+    for (const r of "smi") {
+      const on = [1, 2, 3].filter((k) => l[r + k]).length;
+      if (on === 3) nBars++;
+      else if (on) return { text: "— (barra incompleta)", value: null };
+    }
+    const nDots = [1, 2, 3, 4].filter((k) => l["p" + k]).length;
+    const v = nBars * 5 + nDots;
+    const key = lits.join("");
+    return { text: CANON[key] === v ? String(v) : `${v} (otra posición)`, value: v };
+  }
+
+  /* ---------- Parser de expresiones booleanas ---------- */
+  function tokenize(src) {
+    const toks = [];
+    for (let i = 0; i < src.length; i++) {
+      const ch = src[i];
+      if (/\s/.test(ch)) continue;
+      const pos = i + 1;
+      if (/[A-Ea-e]/.test(ch)) toks.push({ t: "var", v: ch.toUpperCase(), pos });
+      else if (ch === "0" || ch === "1") toks.push({ t: "const", v: +ch, pos });
+      else if (ch === "(" || ch === "[") toks.push({ t: "(", pos });
+      else if (ch === ")" || ch === "]") toks.push({ t: ")", pos });
+      else if ("+|∨".includes(ch)) toks.push({ t: "or", pos });
+      else if ("·*&∧.•⋅".includes(ch)) toks.push({ t: "and", pos });
+      else if ("⊕^".includes(ch)) toks.push({ t: "xor", pos });
+      else if (ch === "⊙") toks.push({ t: "xnor", pos });
+      else if ("!~¬".includes(ch)) toks.push({ t: "not", pos });
+      else if ("'’′`´".includes(ch)) toks.push({ t: "post", pos });
+      else throw new Error(`Símbolo no reconocido «${ch}» en la posición ${pos}`);
+    }
+    return toks;
+  }
+
+  function parse(src) {
+    const toks = tokenize(src);
+    let i = 0;
+    const peek = () => toks[i];
+    const startsFactor = (tk) => tk && (tk.t === "var" || tk.t === "const" || tk.t === "(" || tk.t === "not");
+    const where = () => (peek() ? `en la posición ${peek().pos}` : "al final");
+
+    function parseOr() {
+      let left = parseXor();
+      while (peek() && peek().t === "or") {
+        i++;
+        if (!startsFactor(peek())) throw new Error(`Falta un término después de «+» ${where()}`);
+        left = { op: "or", l: left, r: parseXor() };
+      }
+      return left;
+    }
+    function parseXor() {
+      let left = parseAnd();
+      while (peek() && (peek().t === "xor" || peek().t === "xnor")) {
+        const op = toks[i++].t;
+        if (!startsFactor(peek())) throw new Error(`Falta un término después de «${op === "xor" ? "⊕" : "⊙"}» ${where()}`);
+        left = { op, l: left, r: parseAnd() };
+      }
+      return left;
+    }
+    function parseAnd() {
+      let left = parseUnary();
+      for (;;) {
+        if (peek() && peek().t === "and") {
+          i++;
+          if (!startsFactor(peek())) throw new Error(`Falta un término después de «·» ${where()}`);
+          left = { op: "and", l: left, r: parseUnary() };
+        } else if (startsFactor(peek())) {
+          left = { op: "and", l: left, r: parseUnary() };
+        } else break;
+      }
+      return left;
+    }
+    function parseUnary() {
+      if (peek() && peek().t === "not") { i++; return { op: "not", x: parseUnary() }; }
+      let node = parsePrimary();
+      while (peek() && peek().t === "post") { i++; node = { op: "not", x: node }; }
+      return node;
+    }
+    function parsePrimary() {
+      const tk = peek();
+      if (!tk) throw new Error("La expresión termina de forma incompleta");
+      if (tk.t === "var") { i++; return { op: "var", v: tk.v }; }
+      if (tk.t === "const") { i++; return { op: "const", v: tk.v }; }
+      if (tk.t === "(") {
+        i++;
+        if (peek() && peek().t === ")") throw new Error(`Paréntesis vacío en la posición ${tk.pos}`);
+        const e = parseOr();
+        if (!peek() || peek().t !== ")") throw new Error(`Falta cerrar el paréntesis abierto en la posición ${tk.pos}`);
+        i++;
+        return e;
+      }
+      if (tk.t === ")") throw new Error(`Paréntesis «)» sin abrir en la posición ${tk.pos}`);
+      if (tk.t === "post") throw new Error(`La comilla ' en la posición ${tk.pos} debe ir después de una variable o paréntesis`);
+      throw new Error(`Operador sin término a la izquierda en la posición ${tk.pos}`);
+    }
+
+    if (toks.length === 0) return { op: "const", v: 0, empty: true };
+    const ast = parseOr();
+    if (i < toks.length) {
+      const tk = toks[i];
+      if (tk.t === ")") throw new Error(`Paréntesis «)» sin abrir en la posición ${tk.pos}`);
+      throw new Error(`No se esperaba este símbolo en la posición ${tk.pos}`);
+    }
+    return ast;
+  }
+
+  function evaluate(n, env) {
+    switch (n.op) {
+      case "var": return env[n.v];
+      case "const": return n.v;
+      case "not": return evaluate(n.x, env) ? 0 : 1;
+      case "and": return evaluate(n.l, env) & evaluate(n.r, env);
+      case "or": return evaluate(n.l, env) | evaluate(n.r, env);
+      case "xor": return evaluate(n.l, env) ^ evaluate(n.r, env);
+      case "xnor": return (evaluate(n.l, env) ^ evaluate(n.r, env)) ? 0 : 1;
+    }
+    return 0;
+  }
+
+  /* ---------- Geometría del display ---------- */
+  const r1 = (v) => Math.round(v * 10) / 10;
+  function octagon(cx, cy, r) {
+    const k = r * 0.4142;
+    return [[cx - k, cy - r], [cx + k, cy - r], [cx + r, cy - k], [cx + r, cy + k], [cx + k, cy + r], [cx - k, cy + r], [cx - r, cy + k], [cx - r, cy - k]];
+  }
+  /* Segmento con puntas (hexágono alargado) de P a Q, grosor t, separación g en cada extremo */
+  function stroke(P, Q, t, g) {
+    const dx = Q[0] - P[0], dy = Q[1] - P[1], L = Math.hypot(dx, dy);
+    const ux = dx / L, uy = dy / L, nx = -uy, ny = ux, h = t / 2;
+    const a = [P[0] + ux * g, P[1] + uy * g], b = [Q[0] - ux * g, Q[1] - uy * g];
+    return [
+      a,
+      [a[0] + ux * h + nx * h, a[1] + uy * h + ny * h],
+      [b[0] - ux * h + nx * h, b[1] - uy * h + ny * h],
+      b,
+      [b[0] - ux * h - nx * h, b[1] - uy * h - ny * h],
+      [a[0] + ux * h - nx * h, a[1] + uy * h - ny * h]
+    ];
+  }
+  const DOT_X = [52.5, 97.5, 142.5, 187.5], DOT_Y = 44;
+  const ROW_Y = { s: 91, m: 125, i: 159 };
+  const BAR_X0 = 30, PIECE_W = 60;
+  /* Concha: contorno de cúpula (9 tramos) y 4 nervaduras interiores; todo es un solo LED */
+  const SHELL_OUT = [[260.5, 116], [279.6, 95.8], [309.7, 78.1], [354.3, 78.1], [384.4, 95.8], [403.5, 116], [372.4, 145], [332, 145], [291.6, 145]];
+  const SHELL_RAYS = [[[282.1, 104.4], [299.7, 124.7]], [[312.2, 88.2], [319.7, 116.1]], [[351.8, 88.2], [344.3, 116.1]], [[381.9, 104.4], [364.3, 124.7]]];
+
+  function geometry({ r, t, ts, g }) {
+    const G = {};
+    DOT_X.forEach((x, k) => { G["p" + (k + 1)] = [octagon(x, DOT_Y, r)]; });
+    for (const row of "smi") for (let k = 0; k < 3; k++) {
+      const x0 = BAR_X0 + PIECE_W * k;
+      G[row + (k + 1)] = [stroke([x0, ROW_Y[row]], [x0 + PIECE_W, ROW_Y[row]], t, g)];
+    }
+    const shell = SHELL_OUT.map((P, k) => stroke(P, SHELL_OUT[(k + 1) % SHELL_OUT.length], ts, g));
+    for (const [P, Q] of SHELL_RAYS) shell.push(stroke(P, Q, ts, g));
+    G.c = shell;
+    for (const k in G) G[k] = G[k].map((poly) => poly.map((q) => r1(q[0]) + "," + r1(q[1])).join(" "));
+    return G;
+  }
+  const BIG = geometry({ r: 10, t: 16, ts: 9, g: 2 });
+  const MINI = geometry({ r: 13, t: 20, ts: 12, g: 2.5 });
+  const MINI_VB = "26 25 390 150";
+  const NS = "http://www.w3.org/2000/svg";
+
+  function ledMarkup(G, k, cls) {
+    return `<g class="seg ${cls}">` + G[k].map((p) => `<polygon points="${p}"/>`).join("") + "</g>";
+  }
+
+  function buildDisplay(svg) {
+    svg.innerHTML = "";
+    const els = {};
+    for (const k of LEDS) {
+      const grp = document.createElementNS(NS, "g");
+      grp.setAttribute("class", "seg off");
+      for (const p of BIG[k]) {
+        const poly = document.createElementNS(NS, "polygon");
+        poly.setAttribute("points", p);
+        grp.appendChild(poly);
+      }
+      const title = document.createElementNS(NS, "title");
+      title.textContent = `${k} · ${NAMES[k]}`;
+      grp.appendChild(title);
+      svg.appendChild(grp);
+      els[k] = grp;
+    }
+    const labels = {};
+    const addLabel = (k, x, y) => {
+      const t = document.createElementNS(NS, "text");
+      t.setAttribute("x", x); t.setAttribute("y", y);
+      t.setAttribute("text-anchor", "middle"); t.setAttribute("dominant-baseline", "central");
+      t.setAttribute("class", "seg-label");
+      t.textContent = k;
+      svg.appendChild(t);
+      labels[k] = t;
+    };
+    DOT_X.forEach((x, k) => addLabel("p" + (k + 1), x, 23));
+    for (const row of "smi") for (let k = 0; k < 3; k++) addLabel(row + (k + 1), BAR_X0 + PIECE_W * k + PIECE_W / 2, ROW_Y[row] + 0.5);
+    addLabel("c", 332, 131);
+    return { els, labels };
+  }
+
+  function miniSVG(bits, cls) {
+    let s = `<svg class="${cls}" viewBox="${MINI_VB}" aria-hidden="true">`;
+    LEDS.forEach((k, idx) => { s += ledMarkup(MINI, k, bits[idx] ? "on" : "off"); });
+    return s + "</svg>";
+  }
+
+  /* ---------- Estado ---------- */
+  const state = { inputs: { A: 0, B: 0, C: 0, D: 0, E: 0 }, exprs: { ...PRESETS.maya }, activeLow: false };
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORE) || "null");
+    if (saved && saved.exprs) {
+      for (const k of LEDS) if (typeof saved.exprs[k] === "string") state.exprs[k] = saved.exprs[k];
+      if (saved.inputs) for (const v of VARS) state.inputs[v] = saved.inputs[v] ? 1 : 0;
+      state.activeLow = !!saved.activeLow;
+    }
+  } catch (e) { /* sin almacenamiento: usar valores por defecto */ }
+  const save = () => { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {} };
+
+  const compiled = {};
+  function compile(k) {
+    try { compiled[k] = { ast: parse(state.exprs[k]), err: null }; }
+    catch (e) { compiled[k] = { ast: null, err: e.message }; }
+  }
+
+  /* ---------- Construcción de la interfaz ---------- */
+  const swWrap = document.getElementById("switches");
+  const swEls = {};
+  VARS.forEach((v, idx) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "sw"; b.id = "sw-" + v;
+    b.setAttribute("aria-label", "Entrada " + v);
+    b.innerHTML = `<span class="name">${v}</span><span class="track"><span class="knob"></span></span><span class="val">0</span><span class="w">peso ${(N >> 1) >> idx}</span>`;
+    b.addEventListener("click", () => { state.inputs[v] ^= 1; save(); render(); });
+    swWrap.appendChild(b);
+    swEls[v] = b;
+  });
+
+  const big = buildDisplay(document.getElementById("bigDisplay"));
+
+  const eqWrap = document.getElementById("eqs");
+  const eqEls = {};
+  let lastFocused = null;
+  for (const grp of GROUPS) {
+    const head = document.createElement("div");
+    head.className = "eq-group";
+    head.innerHTML = `<span class="t">${grp.t}</span><span class="h">${grp.h}</span>`;
+    eqWrap.appendChild(head);
+    for (const k of grp.keys) {
+      const row = document.createElement("div");
+      row.className = "eq";
+      let icon = `<svg class="icon" viewBox="${MINI_VB}" aria-hidden="true">`;
+      for (const j of LEDS) icon += ledMarkup(MINI, j, j === k ? "on" : "off");
+      icon += "</svg>";
+      row.innerHTML = `${icon}<label for="expr-${k}" title="${NAMES[k]}">${k} =</label>
+        <input type="text" id="expr-${k}" spellcheck="false" autocomplete="off" autocapitalize="characters" placeholder="p. ej. A'B + CE" aria-label="Expresión de ${NAMES[k]}">
+        <span class="led" aria-live="polite">0</span>
+        <div class="msg" role="status"></div>`;
+      const inp = row.querySelector("input");
+      inp.value = state.exprs[k];
+      inp.addEventListener("input", () => { state.exprs[k] = inp.value; compile(k); save(); render(); });
+      inp.addEventListener("focus", () => { lastFocused = inp; });
+      eqWrap.appendChild(row);
+      eqEls[k] = { row, inp, led: row.querySelector(".led"), msg: row.querySelector(".msg") };
+      compile(k);
+    }
+  }
+  lastFocused = eqEls.p1.inp;
+
+  const symWrap = document.getElementById("symbols");
+  ["A", "B", "C", "D", "E", "'", "·", "+", "⊕", "⊙", "¬", "(", ")", "0", "1"].forEach((sym) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "sym"; b.textContent = sym;
+    b.title = { "'": "NOT (postfijo)", "·": "AND", "+": "OR", "⊕": "XOR", "⊙": "XNOR", "¬": "NOT (prefijo)" }[sym] || "Insertar " + sym;
+    b.addEventListener("mousedown", (e) => e.preventDefault());
+    b.addEventListener("click", () => {
+      const inp = lastFocused || eqEls.p1.inp;
+      const st = inp.selectionStart ?? inp.value.length, en = inp.selectionEnd ?? inp.value.length;
+      inp.value = inp.value.slice(0, st) + sym + inp.value.slice(en);
+      inp.focus();
+      inp.setSelectionRange(st + sym.length, st + sym.length);
+      inp.dispatchEvent(new Event("input"));
+    });
+    symWrap.appendChild(b);
+  });
+
+  const lowBox = document.getElementById("activeLow");
+  lowBox.checked = state.activeLow;
+  lowBox.addEventListener("change", () => { state.activeLow = lowBox.checked; save(); render(); });
+
+  function loadPreset(p) {
+    for (const k of LEDS) { state.exprs[k] = p ? p[k] : ""; eqEls[k].inp.value = state.exprs[k]; compile(k); }
+    save(); render();
+  }
+  document.getElementById("presetMaya").addEventListener("click", () => loadPreset(PRESETS.maya));
+  document.getElementById("presetStrict").addEventListener("click", () => loadPreset(PRESETS.strict));
+  document.getElementById("clearAll").addEventListener("click", () => { loadPreset(null); eqEls.p1.inp.focus(); });
+
+  /* ---------- Cálculo y render ---------- */
+  function outputsFor(env) {
+    // devuelve [{raw, lit}] por LED; raw = valor lógico, lit = encendido
+    return LEDS.map((k) => {
+      const c = compiled[k];
+      if (c.err) return { raw: null, lit: 0 };
+      const raw = evaluate(c.ast, env);
+      return { raw, lit: state.activeLow ? 1 - raw : raw };
+    });
+  }
+  const envFromIndex = (n) => { const e = {}; VARS.forEach((v, i) => { e[v] = (n >> (VARS.length - 1 - i)) & 1; }); return e; };
+  const indexFromEnv = (e) => VARS.reduce((acc, v) => acc * 2 + e[v], 0);
+
+  const ttBody = document.getElementById("ttBody");
+  const rows = [];
+  for (let n = 0; n < N; n++) {
+    const tr = document.createElement("tr");
+    tr.tabIndex = 0;
+    if (n >= 20) { tr.classList.add("out"); tr.title = "No es un dígito maya (0–19)"; }
+    tr.addEventListener("click", () => { Object.assign(state.inputs, envFromIndex(n)); save(); render(); });
+    tr.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tr.click(); } });
+    ttBody.appendChild(tr);
+    rows.push(tr);
+  }
+
+  function render() {
+    const env = state.inputs;
+    const idx = indexFromEnv(env);
+    for (const v of VARS) {
+      swEls[v].setAttribute("aria-pressed", env[v] ? "true" : "false");
+      swEls[v].querySelector(".val").textContent = env[v];
+    }
+    document.getElementById("bin").textContent = VARS.map((v) => env[v]).join("");
+    document.getElementById("dec").textContent = idx;
+    document.getElementById("maya").innerHTML = idx === 0
+      ? "maya <b>cero</b>"
+      : idx < 20
+        ? `barras <b>${Math.floor(idx / 5)}</b> · puntos <b>${idx % 5}</b>`
+        : "<b>fuera de rango</b> (0–19)";
+
+    const outs = outputsFor(env);
+    const lits = outs.map((o) => o.lit);
+    LEDS.forEach((k, j) => {
+      big.els[k].setAttribute("class", "seg " + (lits[j] ? "on" : "off"));
+      if (k !== "c" && k[0] !== "p") big.labels[k].classList.toggle("lit", !!lits[j]);
+      const e = eqEls[k], c = compiled[k];
+      e.row.classList.toggle("bad", !!c.err);
+      e.msg.textContent = c.err || "";
+      e.led.textContent = c.err ? "!" : outs[j].raw;
+      e.led.classList.toggle("on", !c.err && lits[j] === 1);
+    });
+
+    const errs = LEDS.filter((k) => compiled[k].err);
+    if (errs.length) {
+      document.getElementById("status").innerHTML = `Revisa ${errs.join(", ")}: hay un error de sintaxis`;
+    } else {
+      const d = describe(lits);
+      const note = idx >= 20 ? " · fuera de rango" : d.value === idx ? " ✓" : ` · se esperaba ${idx}`;
+      document.getElementById("status").innerHTML = `Muestra: <b>${d.text}</b>${note}`;
+    }
+
+    for (let n = 0; n < N; n++) {
+      const o = outputsFor(envFromIndex(n));
+      const l = o.map((x) => x.lit);
+      const e = envFromIndex(n);
+      let html = `<td>${n}</td>` + VARS.map((v, i) => `<td${i === 0 ? ' class="sep"' : ""}>${e[v]}</td>`).join("");
+      o.forEach((x, j) => {
+        const cls = (SEP.has(LEDS[j]) ? "sep " : "") + (x.raw === null ? "err" : x.raw ? "one" : "zero");
+        html += `<td class="${cls}">${x.raw === null ? "?" : x.raw}</td>`;
+      });
+      const d = describe(l);
+      const charCls = n >= 20 ? "char na" : d.value === n ? "char" : "char miss";
+      html += `<td class="sep"><span class="mini-wrap">${miniSVG(l, "mini")}</span></td><td class="${charCls}">${d.text}</td>`;
+      rows[n].innerHTML = html;
+      rows[n].classList.toggle("cur", n === idx);
+      rows[n].setAttribute("aria-label", `Combinación ${n}`);
+    }
+  }
+
+  render();
+  window.__simMaya = { parse, evaluate, describe, canonical, PRESETS, LEDS };
+})();
+</script>
+</body>
+</html>
